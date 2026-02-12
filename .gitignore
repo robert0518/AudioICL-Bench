@@ -1,0 +1,10 @@
+data/
+mapping/
+
+# caches / logs
+__pycache__/
+*.pyc
+*.log
+.DS_Store
+.vscode/
+.idea/
