@@ -11,7 +11,7 @@
 
 ## Overview
 
-![AudioICL-Bench Overview](figures/overview.png)
+![AudioICL-Bench Overview](overview.png)
 
 ## Abstract
 
