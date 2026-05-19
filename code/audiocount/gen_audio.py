@@ -190,9 +190,9 @@ def main(
 
 
 if __name__ == "__main__":
-    DATASET_ROOT = "/home5/b10303106/ICL-benchmark/data/one_shot" 
-    OUT_ROOT = "/home5/b10303106/ICL-benchmark/data/audiocount"
-    LICENSES = "/home5/b10303106/ICL-benchmark/data/one_shot/licenses.txt"
+    DATASET_ROOT = "/mnt/data/robertchen/data/one_shot" 
+    OUT_ROOT = "/mnt/data/robertchen/data/audiocount"
+    LICENSES = "/mnt/data/robertchen/data/one_shot/licenses.txt"
 
     main(
         dataset_root=DATASET_ROOT,
