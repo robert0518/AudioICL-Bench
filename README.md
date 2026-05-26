@@ -4,7 +4,6 @@
 
 - **Authors:** Jia-Hung Chen, Yi-Cheng Lin, Kai-Wei Chang, Ke-Han Lu, Hung-Yi Lee
 - **Affiliations:** National Taiwan University, Taiwan; Massachusetts Institute of Technology, USA; NTU AI-CoRE, Taiwan
-- **Accepted to Interspeech 2026**
 - **Paper link:** *(coming soon)*
 
 ---
