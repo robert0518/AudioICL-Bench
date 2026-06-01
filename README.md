@@ -1,7 +1,5 @@
 # 🎧 AudioICL-Bench: A Benchmark for In-Context Learning in Audio
 
-### The official GitHub page of the paper "AudioICL-Bench: Can Large Audio Language Models Solve Morse Code In Context? A Benchmark for Audio In-Context Learning"
-
 - **Authors:** Jia-Hung Chen, Yi-Cheng Lin, Kai-Wei Chang, Ke-Han Lu, Hung-Yi Lee
 - **Affiliations:** National Taiwan University, Taiwan; Massachusetts Institute of Technology, USA; NTU AI-CoRE, Taiwan
 - **Paper link:** *(coming soon)*
