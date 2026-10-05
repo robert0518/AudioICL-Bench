@@ -89,14 +89,14 @@ The input is a sequence of audio clips. Each clip contains numbers expressed thr
 From the in-context examples, infer which arithmetic rule the filler sounds represents and how the numbers should be combined. Then apply the same rule to the query clip and compute the final result.
 
 Output only the resulting integer.
-""".strip(), 
+""".strip(),
 
     "MorseCode": """
 You are given Morse code audio clips.
 You will first receive a complete reference set of Morse-code letter audio examples paired with their correct uppercase letters (A–Z).
 Use these reference examples to decode the query audio.
 Then, use the additional in-context examples and decode the query audio.
-Only output the word, without any punctuation, explanation. 
+Only output the word, without any punctuation, explanation.
 """.strip(),
 
     "AudioRemap": """
@@ -112,18 +112,18 @@ You MUST listen to MIX and match each segment to A or B by audio similarity.
 Determine the 3-step A/B order from the demos.
 
 For the query, again hear A, B, then MIX.
-Output ONLY the 3-letter uppercase MIX label without explanation. 
+Output ONLY the 3-letter uppercase MIX label without explanation.
 """.strip(),
 
     "AnomalyDetect": """
 You will hear audio clips from the SAME object type (e.g., bearing, fan, gearbox, etc.).
 
-In each in-context demo, you will hear two clips Normal clip and Anomalous clip. 
+In each in-context demo, you will hear two clips Normal clip and Anomalous clip.
 
 For the query, you will hear ONE clip from the same object type.
 Decide whether the query clip is Normal or Anomalous.
 
-Output ONLY the label, without any explanation. 
+Output ONLY the label, without any explanation.
 """.strip(),
 }
 
@@ -148,12 +148,6 @@ def load_audio(path: str, target_sr: int = 16000) -> np.ndarray:
     """vLLM audio input: numpy float32 1D"""
     y, _ = librosa.load(path, sr=target_sr, mono=True)
     return y.astype(np.float32)
-
-
-def pad_audio(y: np.ndarray, length: int) -> np.ndarray:
-    if len(y) >= length:
-        return y[:length]
-    return np.pad(y, (0, length - len(y)), mode="constant")
 
 
 def read_jsonl(path: Path) -> Iterable[dict]:
@@ -341,10 +335,7 @@ def prepare_audioicl_inputs(
     morse_az_bank: Optional[Dict[str, np.ndarray]] = None,
 ):
     inputs = []
-    loaded_items = []
-    max_len = 0
 
-    # Phase 1: Flatten, load audios, and compute per-batch max_len
     for rec in records:
         try:
             if strict_demos and len(rec.get("demos", [])) < n_demos:
@@ -365,63 +356,45 @@ def prepare_audioicl_inputs(
             if prepend_morse_az:
                 az_wavs = [morse_az_bank[ch] for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"]
 
-            cur_max = max(
-                ([len(x) for x in wavs] if wavs else [0])
-                + ([len(x) for x in az_wavs] if az_wavs else [0])
-            )
-            max_len = max(max_len, cur_max)
+            instruction_override = rec.get("instruction")
 
-            loaded_items.append((rec, task, demo_items, query_items, wavs, az_wavs, prepend_morse_az))
+            messages = build_prompt(
+                task_name=task,
+                demo_items=[{"tag": it["tag"], "label": it.get("label", "")} for it in demo_items],
+                query_items=[{"tag": it["tag"], "label": it.get("label", None)} for it in query_items],
+                prepend_morse_az=prepend_morse_az,
+                instruction_override=instruction_override
+            )
+
+            try:
+                prompt = tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=True
+                )
+            except Exception as e:
+                print(f"Template generation failed for id={rec.get('id')}: {e}")
+                continue
+
+            audio_list = []
+
+            if prepend_morse_az:
+                audio_list.extend([(y, target_sr) for y in az_wavs])
+
+            audio_list.extend([(y, target_sr) for y in wavs])
+
+            inputs.append({
+                "prompt": prompt,
+                "multi_modal_data": {"audio": audio_list},
+                "meta": {
+                    "id": rec["id"],
+                    "task": task,
+                    "gt": rec.get("query", {}).get("label", None),
+                }
+            })
         except Exception as e:
             print(f"skip rec due to error: {e}")
             continue
-
-    if not loaded_items:
-        return []
-
-    # Phase 2: build prompts + vLLM inputs
-    for rec, task, demo_items, query_items, wavs, az_wavs, prepend_morse_az in loaded_items:
-        # Pad all audios within this batch to max_len
-        wavs = [pad_audio(y, max_len) for y in wavs]
-        if az_wavs:
-            az_wavs = [pad_audio(y, max_len) for y in az_wavs]
-            
-        instruction_override = rec.get("instruction")
-
-        messages = build_prompt(
-            task_name=task,
-            demo_items=[{"tag": it["tag"], "label": it.get("label", "")} for it in demo_items],
-            query_items=[{"tag": it["tag"], "label": it.get("label", None)} for it in query_items],
-            prepend_morse_az=prepend_morse_az,
-            instruction_override=instruction_override
-        )
-
-        try:
-            prompt = tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True
-            )
-        except Exception as e:
-            print(f"Template generation failed for id={rec.get('id')}: {e}")
-            continue
-
-        audio_list = []
-
-        if prepend_morse_az:
-            audio_list.extend([(y, target_sr) for y in az_wavs])
-        
-        audio_list.extend([(y, target_sr) for y in wavs])
-
-        inputs.append({
-            "prompt": prompt,
-            "multi_modal_data": {"audio": audio_list},
-            "meta": {
-                "id": rec["id"],
-                "task": task,
-                "gt": rec.get("query", {}).get("label", None),
-            }
-        })
 
     return inputs
 
@@ -439,15 +412,12 @@ def build_morse_az_sanity_inputs(tokenizer, morse_az_bank: Dict[str, np.ndarray]
     )
     prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
-    # Pad A–Z once to max length among bank
     az_raw = [morse_az_bank[ch] for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"]
-    max_len = max(len(x) for x in az_raw)
-    az_padded = [pad_audio(x, max_len) for x in az_raw]
 
     inputs = []
     for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
-        query = pad_audio(morse_az_bank[ch], max_len)
-        audio_list = [(y, target_sr) for y in az_padded] + [(query, target_sr)]
+        query = morse_az_bank[ch]
+        audio_list = [(y, target_sr) for y in az_raw] + [(query, target_sr)]
         inputs.append({
             "prompt": prompt,
             "multi_modal_data": {"audio": audio_list},
